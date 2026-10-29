@@ -6923,7 +6923,3 @@ CONFIG_NETFILTER_XT_MATCH_RECENT=y
 # CONFIG_INTEGRITY is not set
 # CONFIG_FIVE is not set
 # CONFIG_TRIM_UNUSED_KSYMS is not set
-
-# Yucca ROM gate (diagnostic mode default; flip ENFORCE=y for production)
-CONFIG_YUCCA_ROM_GATE=y
-# CONFIG_YUCCA_ROM_GATE_ENFORCE is not set

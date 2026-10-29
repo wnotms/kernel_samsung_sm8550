@@ -108,24 +108,6 @@ jobs:
           EXTRA_CONFIG: ${{ inputs.extra_config }}
         run: python3 scripts/build/ci_config.py prepare "out/$BUILD_MODE/selected.config"
 
-      # The source's ROM gate defaults to diagnostic mode (no panic).
-      # For repeatable ROM integration, supply the SAME token on every build
-      # using the repository Actions secret named YUCCA_TOKEN.
-      # Never upload the token or generated header as an artifact.
-      - name: Configure optional ROM gate token
-        shell: bash
-        env:
-          YUCCA_TOKEN: ${{ secrets.YUCCA_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ -n "${YUCCA_TOKEN}" ]]; then
-            printf '%s' "${YUCCA_TOKEN}" > .yucca_token
-            chmod 600 .yucca_token
-            echo "Using stable ROM gate token from repository secret."
-          else
-            echo "::warning::YUCCA_TOKEN is not configured. build.sh will generate an ephemeral token. The default gate is diagnostic, but any ROM that checks the token needs a stable secret."
-          fi
-
       - name: Fetch AnyKernel3 packaging tools
         if: ${{ inputs.package_zip }}
         shell: bash

@@ -508,33 +508,4 @@ source "drivers/misc/habanalabs/Kconfig"
 source "drivers/misc/uacce/Kconfig"
 source "drivers/misc/pvpanic/Kconfig"
 
-config YUCCA_ROM_GATE
-	bool "Yucca ROM gate"
-	default y
-	help
-	  Early-boot kthread waits for userspace to write the string
-	  "<ro.build.display.id>|<token>" to /proc/early_assert_status
-	  within 60 seconds. The display.id portion must contain the
-	  literal substring ".By_Yucca"; the sha256 of the token portion
-	  must match the constant embedded by scripts/build/build.sh
-	  from the .yucca_token file in the project root.
-
-	  If unsure, say N.
-
-config YUCCA_ROM_GATE_ENFORCE
-	bool "Yucca ROM gate: panic on failure (production mode)"
-	depends on YUCCA_ROM_GATE
-	default n
-	help
-	  N (diagnostic): failures only log to dmesg; device boots fine.
-	  Use during ROM-side integration to verify the init.rc write
-	  actually fires and parses correctly.
-
-	  Y (enforce): failures emit BUG() -> kernel panic -> bootloop
-	  until a matching ROM is flashed. Flip to Y only after the
-	  diagnostic build has logged "early_assert: passed" on every
-	  cold boot of your target ROM.
-
-	  If unsure, say N.
-
 endmenu
