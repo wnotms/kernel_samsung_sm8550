@@ -444,26 +444,17 @@ apply_droidspaces() {
   popd >/dev/null
 
   local defconfig="${PROJECT_ROOT}/arch/arm64/configs/gki_defconfig"
-  if grep -q '^CONFIG_SYSVIPC=y' "${defconfig}"; then
-    warn "Droidspaces: SYSVIPC already enabled, skipping defconfig append."
-    return
-  fi
-  cat >> "${defconfig}" <<'EOF'
+  # Apply every requested capability even if SYSVIPC was already enabled.
+  # In particular, a previous SYSVIPC setting must not skip CPU/PIDs/userns.
+  scripts/config --file "${defconfig}" \
+    -e SYSVIPC -e POSIX_MQUEUE -e NAMESPACES -e UTS_NS -e IPC_NS -e PID_NS -e NET_NS \
+    -e USER_NS -e DEVTMPFS -e MACVLAN \
+    -e CGROUPS -e CGROUP_SCHED -e FAIR_GROUP_SCHED -e CGROUP_CPUACCT \
+    -e CFS_BANDWIDTH -e CGROUP_PIDS -e MEMCG \
+    -e TMPFS -e TMPFS_XATTR -e NETFILTER -e NETFILTER_ADVANCED -e NETFILTER_XTABLES \
+    -e NETFILTER_XT_MATCH_ADDRTYPE -e NETFILTER_XT_MATCH_RECENT
+  ok "Droidspaces: namespaces, resource limits and Macvlan configured."
 
-# Wild Kernels: Droidspaces (Linux container support)
-# IPC
-CONFIG_SYSVIPC=y
-CONFIG_POSIX_MQUEUE=y
-# Namespaces
-CONFIG_IPC_NS=y
-CONFIG_PID_NS=y
-# Devtmpfs for hw access in containers
-CONFIG_DEVTMPFS=y
-# Docker NAT / UFW / Fail2Ban netfilter knobs
-CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
-CONFIG_NETFILTER_XT_MATCH_RECENT=y
-EOF
-  ok "Droidspaces: configs appended to gki_defconfig."
 }
 
 # IPv6 NAT config hiding is now a conditional config_data recipe in

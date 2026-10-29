@@ -17,7 +17,7 @@ on:
         type: boolean
         default: true
       droidspaces:
-        description: "启用 DroidSpaces 容器 (SYSVIPC / IPC_NS / PID_NS / devtmpfs)"
+        description: "启用 DroidSpaces 容器、CPU/PIDs 限额、用户命名空间及 Macvlan"
         type: boolean
         default: true
       ntsync:

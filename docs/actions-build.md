@@ -8,7 +8,7 @@
 | --- | --- |
 | `mode` | `lkm` 不内置 KernelSU；`resukisu` 内置 ReSukiSU。`lkm` 名称沿用原构建脚本，不表示此工作流会额外编译 KernelSU `.ko`。 |
 | `package_zip` | 同时生成 AnyKernel3 刷机包。 |
-| `droidspaces` | 开启 SYSVIPC、POSIX_MQUEUE、IPC_NS、PID_NS、devtmpfs 及相关容器依赖；取消时关闭前五项，保留 Android 原有 UTS/网络命名空间。 |
+| `droidspaces` | 开启 SYSVIPC、POSIX_MQUEUE、IPC_NS、PID_NS、devtmpfs，以及 CPU 带宽限额（CFS_BANDWIDTH）、进程数限制（CGROUP_PIDS）、用户命名空间（USER_NS）和 Macvlan；同时补齐 cgroup 调度、内存控制和命名空间依赖。取消时关闭上述九项，保留 Android 原有 UTS/网络命名空间及基础 cgroup。 |
 | `ntsync` | 开启或关闭 NTSync。 |
 | `bbr` | 勾选启用 BBR 并设为默认；取消关闭 BBR，默认使用 CUBIC。 |
 | `zram_lz4` | 勾选默认 LZ4；取消改用 lzo-rle，保留 ZRAM。 |
@@ -24,6 +24,8 @@
 | `ttl_target` | 开启 iptables TTL / IPv6 HL target；取消时关闭它。 |
 | `hide_ipv6_nat` | 仅在嵌入的 `/proc/config.gz` 中隐藏 `CONFIG_IP6_NF_NAT=y`，不改变实际 NAT 功能；取消时原样嵌入最终 `.config`。 |
 | `extra_config` | 分号或换行分隔的额外 Kconfig 设置，覆盖上面的普通功能选项。 |
+
+开启 `droidspaces` 后无需再在额外配置中手动填写上述四项。内核提供能力后，实际限额、无 root 容器和沙箱仍需 Android/DroidSpaces 的 cgroup 挂载、权限及用户空间工具配合。
 
 额外配置示例：
 

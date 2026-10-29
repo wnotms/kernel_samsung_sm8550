@@ -69,6 +69,12 @@ clang
                 env.update({"INPUT_" + name: str(enabled).lower() for name in FLAGS})
                 with patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()):
                     ci.prepare(temp / "fragment")
+                requested = ci.parse((temp / "fragment").read_text())
+                for symbol in ("CFS_BANDWIDTH", "CGROUP_PIDS", "USER_NS", "MACVLAN"):
+                    self.assertEqual(requested[symbol], "y" if enabled else "n")
+                if enabled:
+                    for symbol in ("CGROUPS", "CGROUP_SCHED", "FAIR_GROUP_SCHED", "CGROUP_CPUACCT", "MEMCG", "NAMESPACES"):
+                        self.assertEqual(requested[symbol], "y")
                 exported = dict(line.split("=", 1) for line in (temp / "env").read_text().splitlines())
                 for name in ("APPLY_BBG", "APPLY_UNICODE_FIX", "APPLY_PTRACE_FIX", "APPLY_IPV6_NAT_FIX", "ENABLE_NTFS3", "ENABLE_FULL_TMPFS", "ENABLE_IPSET", "ENABLE_TTL_TARGET"):
                     self.assertEqual(exported[name], str(int(enabled)))
