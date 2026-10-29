@@ -1,4 +1,4 @@
-name: Build Samsung SM8550 kernel
+name: Build Samsung SM8550 kernel (stock identity)
 
 on:
   workflow_dispatch:
@@ -16,11 +16,39 @@ on:
         required: true
         type: boolean
         default: true
-      kernel_tag:
-        description: "Kernel localversion tag (no spaces)"
-        required: true
+      droidspaces:
+        description: "启用 DroidSpaces 容器 (SYSVIPC / IPC_NS / PID_NS / devtmpfs)"
+        type: boolean
+        default: true
+      ntsync:
+        description: "启用 NTSync (Wine / Proton)"
+        type: boolean
+        default: true
+      bbr:
+        description: "启用 BBR；取消则使用 CUBIC"
+        type: boolean
+        default: true
+      zram_lz4:
+        description: "ZRAM 默认 LZ4；取消则使用 lzo-rle"
+        type: boolean
+        default: true
+      susfs:
+        description: "启用 SUSFS (仅 resukisu 模式生效)"
+        type: boolean
+        default: true
+      zeromount:
+        description: "启用 ZeroMount (需要 resukisu + SUSFS)"
+        type: boolean
+        default: true
+      rekernel:
+        description: "启用 Re:Kernel (Generic Netlink)"
+        type: boolean
+        default: true
+      extra_config:
+        description: '额外配置，例如 CONFIG_USER_NS=y;CONFIG_IKCONFIG=y（支持分号或换行）'
         type: string
-        default: "YuccaA"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -35,7 +63,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 330
     env:
-      KERNEL_TAG: ${{ inputs.kernel_tag }}
+      BUILD_MODE: ${{ inputs.mode }}
+      KERNEL_TAG: "X710ZCU5CYH4"
       JOBS: "4"
       USE_CCACHE: "0"
       ZIP_AFTER: ${{ inputs.package_zip && '1' || '0' }}
@@ -63,9 +92,21 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
             libfdt-dev cpio rsync zstd zip unzip curl git python3 patch \
-            binutils-aarch64-linux-gnu ca-certificates openssl
+            binutils-aarch64-linux-gnu ca-certificates openssl kmod
           sudo apt-get clean
           df -h .
+
+      - name: Prepare selected config and reference zImage identity
+        env:
+          INPUT_DROIDSPACES: ${{ inputs.droidspaces }}
+          INPUT_NTSYNC: ${{ inputs.ntsync }}
+          INPUT_BBR: ${{ inputs.bbr }}
+          INPUT_ZRAM_LZ4: ${{ inputs.zram_lz4 }}
+          INPUT_SUSFS: ${{ inputs.susfs }}
+          INPUT_ZEROMOUNT: ${{ inputs.zeromount }}
+          INPUT_REKERNEL: ${{ inputs.rekernel }}
+          EXTRA_CONFIG: ${{ inputs.extra_config }}
+        run: python3 scripts/build/ci_config.py prepare "out/$BUILD_MODE/selected.config"
 
       # The source's ROM gate defaults to diagnostic mode (no panic).
       # For repeatable ROM integration, supply the SAME token on every build
@@ -101,8 +142,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/build/build.sh "${{ inputs.mode }}"
-          test -s "out/${{ inputs.mode }}/arch/arm64/boot/Image"
+          bash scripts/build/build.sh "$BUILD_MODE"
+          test -s "out/$BUILD_MODE/arch/arm64/boot/Image"
+          python3 scripts/build/ci_config.py verify-image "out/$BUILD_MODE"
+          {
+            echo '### Kernel build verified'
+            echo '```'
+            cat "out/$BUILD_MODE/include/config/kernel.release"
+            echo '```'
+            echo 'Source remains Linux 5.15.220. Displayed identity is copied from the supplied zImage.'
+            echo 'Matching the release string does not guarantee vendor module ABI compatibility.'
+            echo '#### Requested config'
+            echo '```'
+            cat "$CONFIG_FRAGMENT_FILE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           df -h .
 
       - name: Upload kernel Image, config and ZIP
@@ -116,7 +170,12 @@ jobs:
           path: |
             out/${{ inputs.mode }}/arch/arm64/boot/Image
             out/${{ inputs.mode }}/include/config/kernel.release
+            out/${{ inputs.mode }}/include/generated/compile.h
+            out/${{ inputs.mode }}/build-metadata.json
+            out/${{ inputs.mode }}/Module.symvers
+            out/${{ inputs.mode }}/System.map
             out/${{ inputs.mode }}/.config
+            out/${{ inputs.mode }}/selected.config
             out/${{ inputs.mode }}/SM8550_*.zip
 
       - name: Upload failed build logs
@@ -130,3 +189,4 @@ jobs:
           path: |
             out/${{ inputs.mode }}/.make.attempt*.log
             out/${{ inputs.mode }}/.config
+            out/${{ inputs.mode }}/selected.config

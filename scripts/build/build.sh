@@ -110,8 +110,17 @@ fi
 BUILD_ID="${BUILD_ID:-${BUILD_NUM:-$(git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)}}"
 LOCALVERSION="-${ANDROID_BASE}-${KMI_GENERATION}-${KERNEL_TAG}-${BUILD_ID}-${PAGE_SIZE_TAG}"
 log "Localversion: ${LOCALVERSION}"
-export KBUILD_BUILD_USER="universal"
-export KBUILD_BUILD_HOST="sm8550"
+# Preserve caller-supplied build identity (CI loads it from reference-zimage.json).
+export KBUILD_BUILD_USER="${KBUILD_BUILD_USER:-universal}"
+export KBUILD_BUILD_HOST="${KBUILD_BUILD_HOST:-sm8550}"
+if [[ -n "${KERNEL_RELEASE_OVERRIDE:-}" ]]; then
+  [[ "${KERNEL_RELEASE_OVERRIDE}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$ ]] \
+    || die "Invalid KERNEL_RELEASE_OVERRIDE"
+  LOCALVERSION="${KERNEL_RELEASE_OVERRIDE#${KERNEL_RELEASE_OVERRIDE%%-*}}"
+  [[ "${LOCALVERSION}" != "${KERNEL_RELEASE_OVERRIDE}" ]] || LOCALVERSION=""
+  # Suppress setlocalversion's optional ab build number; it is already in the suffix.
+  unset BUILD_NUMBER
+fi
 export LOCALVERSION
 
 # ccache: cache compiled objects so repeated builds with the same
@@ -157,6 +166,12 @@ MAKE_ARGS=(
   -j"${JOBS}"
 )
 
+if [[ -n "${KERNEL_RELEASE_OVERRIDE:-}" ]]; then
+  # Override the displayed release only, preserving Makefile SUBLEVEL/version.h
+  # and the actual LTS source. Never pretend this downgrades the source tree.
+  MAKE_ARGS+=("KERNELVERSION=${KERNEL_RELEASE_OVERRIDE%%-*}")
+fi
+
 log "Configuring (defconfig + gki_defconfig fragment)..."
 make "${MAKE_ARGS[@]}" gki_defconfig
 
@@ -198,7 +213,17 @@ else
   scripts/config --file "${OUT_DIR}/.config" --enable KSU --enable KSU_SUSFS --enable ZEROMOUNT
 fi
 
+# Apply CI choices LAST, after the mode's defaults, then resolve dependencies.
+if [[ -n "${CONFIG_FRAGMENT_FILE:-}" ]]; then
+  python3 "${SCRIPT_DIR}/ci_config.py" apply "${OUT_DIR}/.config" "${CONFIG_FRAGMENT_FILE}"
+fi
+if [[ -n "${KERNEL_RELEASE_OVERRIDE:-}" ]]; then
+  scripts/config --file "${OUT_DIR}/.config" --set-str LOCALVERSION "" -d LOCALVERSION_AUTO
+fi
 make "${MAKE_ARGS[@]}" olddefconfig
+if [[ -n "${CONFIG_FRAGMENT_FILE:-}" ]]; then
+  python3 "${SCRIPT_DIR}/ci_config.py" verify "${OUT_DIR}/.config" "${CONFIG_FRAGMENT_FILE}"
+fi
 
 # IP_SET without XT_SET cannot be consumed by iptables' -m set match.
 if ! grep -q '^CONFIG_NETFILTER_XT_SET=y$' "${OUT_DIR}/.config"; then
@@ -207,11 +232,11 @@ fi
 log "IP_SET / xt_set: built in"
 
 # Match the official Re:Kernel module's Generic Netlink transport.
-if ! grep -q '^CONFIG_REKERNEL=y$' "${OUT_DIR}/.config" || \
-   grep -q '^CONFIG_REKERNEL_LEGACY_NETLINK=y$' "${OUT_DIR}/.config"; then
+if [[ "${ENABLE_REKERNEL:-1}" == "1" ]] && { ! grep -q '^CONFIG_REKERNEL=y$' "${OUT_DIR}/.config" || \
+   grep -q '^CONFIG_REKERNEL_LEGACY_NETLINK=y$' "${OUT_DIR}/.config"; }; then
   die "ReKernel must be built in with Generic Netlink"
 fi
-log "ReKernel transport: Generic Netlink (legacy disabled)"
+log "ReKernel configuration checked"
 
 # 5. Build with auto-retry. WSL2 ext4 occasionally fails with
 #    'clang: unable to rename .o.tmp to .o: No such file or directory'
@@ -237,14 +262,6 @@ while true; do
   set -o pipefail
   if [[ ${rc} -eq 0 ]]; then
     log "make Image succeeded on attempt ${attempt}."
-    break
-  fi
-  # WSL2 rename race sometimes triggers during the final OBJCOPY step,
-  # after Image has actually been written. Accept that as success since
-  # the artifact we want is on disk and Image is newer than the rm -f
-  # above (so it is guaranteed to have been produced this attempt).
-  if [[ -f "${IMAGE}" ]]; then
-    log "Image produced on attempt ${attempt} despite reported failure (likely rename race)."
     break
   fi
   if [[ ${attempt} -ge ${MAX_RETRY} ]]; then

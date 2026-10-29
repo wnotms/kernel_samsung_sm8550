@@ -1,0 +1,11 @@
+{
+  "release": "5.15.153-android13-8-2370170-abX710ZCU5CYH4",
+  "build_user": "ms",
+  "build_host": "DESKTOP-EAS21AS",
+  "build_version": "1",
+  "build_timestamp": "2025-08-20 08:06:12 UTC",
+  "compiler": "Android (8508608, based on r450784e) clang version 14.0.7 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6), LLD 14.0.7",
+  "banner": "Linux version 5.15.153-android13-8-2370170-abX710ZCU5CYH4 (ms@DESKTOP-EAS21AS) (Android (8508608, based on r450784e) clang version 14.0.7 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6), LLD 14.0.7) #1 SMP PREEMPT 2025-08-20 08:06:12 UTC",
+  "reference_sha256": "df64f02236b9394881f25a1e8167fde680887ef4119a27d7200721dd76119591",
+  "source_kernel_version": "5.15.220"
+}

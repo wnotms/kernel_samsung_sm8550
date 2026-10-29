@@ -4,6 +4,8 @@
 
 # kernel_samsung_sm8550
 
+本 fork 的 Actions 支持手动选择功能和额外 Kconfig 设置，并沿用上传 zImage 的版本标识、编译者及时间。实际源码保持 5.15.220。使用方式见 [Actions 编译说明](docs/actions-build.md)。
+
 > 2026-09-09 更新：LTS 5.15.220；移除全部 Wild 性能/日志/唤醒调优。
 > 保留 BBR、ZRAM LZ4、Unicode、Droidspaces、ipset 等现有功能。
 > ReSukiSU 固定至 `f1dd81dc`，SuSFS 更新至 2.3.0，Re:Kernel 使用官方 11.6 + Generic Netlink；上一组 LKM / ReSukiSU 已通过真机启动与 Freezer 连接测试。
