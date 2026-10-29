@@ -28,10 +28,12 @@ done
 
 # The tar.gz contains "prebuilts/..." at its top level, so we extract
 # from PROJECT_ROOT to land the contents directly under prebuilts/.
+# The archive carries macOS PAX/xattr metadata. Ignore only unsupported
+# metadata-keyword warnings; extraction and corruption errors remain fatal.
 log "Concatenating and extracting (split parts are pieces of one tar.gz)..."
 cat "${TOOLCHAIN_ROOT}"/toolchain_part_aa.tar.gz \
     "${TOOLCHAIN_ROOT}"/toolchain_part_ab.tar.gz \
-    "${TOOLCHAIN_ROOT}"/toolchain_part_ac.tar.gz | tar -xzf -
+    "${TOOLCHAIN_ROOT}"/toolchain_part_ac.tar.gz | tar --warning=no-unknown-keyword -xzf -
 
 # Cleanup AppleDouble metadata files and downloaded chunks.
 find "${TOOLCHAIN_ROOT}" -maxdepth 1 -name '._*' -delete 2>/dev/null || true
