@@ -27,18 +27,18 @@ CONFIG_USER_NS=y;CONFIG_IKCONFIG=y;CONFIG_IKCONFIG_PROC=y
 
 配置会在原脚本的默认设置之后应用，再运行 `olddefconfig`。依赖导致请求的配置无法生效时，工作流会报出具体项目并停止。KSU/SUSFS/ZeroMount、版本字符串、SMP/PREEMPT、ThinLTO/CFI 使用专用控制或固定值，不允许通过额外配置覆盖。不存在的配置无法开启。
 
-## 原 zImage 的版本信息
+## 参考 boot.img.lz4 的内核版本信息
 
-已从上传的 **45,816,320 字节 ARM64 Image** 提取并保存到 `scripts/build/reference-zimage.json`；虽然原文件名为 zImage，它实际是未压缩的 ARM64 Image。CI 无需重新上传原镜像。
+已解压上传的 `boot.img.lz4`，按 Android boot header v4 从偏移 4096 提取 **45,550,080 字节 ARM64 Image**，并将内核中的原始版本横幅保存到 `scripts/build/reference-zimage.json`（沿用现有文件名）。CI 无需重新上传原镜像。JSON 同时记录压缩文件、解压后 boot.img 和内核 Image 的 SHA-256，便于核对参考来源。
 
 | 项目 | 固定值 |
 | --- | --- |
 | 内核 release | `5.15.153-android13-8-2370170-abX710ZCU5CYH4` |
-| 编译者 | `ms@DESKTOP-EAS21AS` |
+| 编译者 | `build-user@build-host` |
 | 构建编号 | `#1` |
-| 构建时间 | `2025-08-20 08:06:12 UTC` |
+| 构建时间 | `Wed Aug 20 08:06:12 UTC 2025` |
 | 编译器 | Android clang 14.0.7，`r450784e` / build 8508608，LLD 14.0.7 |
-| UTS version | `#1 SMP PREEMPT 2025-08-20 08:06:12 UTC` |
+| UTS version | `#1 SMP PREEMPT Wed Aug 20 08:06:12 UTC 2025` |
 
 工作流使用仓库原有的 Samsung `clang-r450784e` 工具链和 ThinLTO + CFI。只通过构建参数固定显示的 release，不修改顶层 Makefile 的源码版本，不伪造编译器标识；最终会检查 `kernel.release` 和 Image 中完整的 `Linux version ...` 横幅与原镜像完全相同。编译器标识或构建身份不一致会使校验失败。
 

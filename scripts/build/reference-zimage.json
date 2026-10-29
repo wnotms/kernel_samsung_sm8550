@@ -1,11 +1,16 @@
 {
   "release": "5.15.153-android13-8-2370170-abX710ZCU5CYH4",
-  "build_user": "ms",
-  "build_host": "DESKTOP-EAS21AS",
+  "build_user": "build-user",
+  "build_host": "build-host",
   "build_version": "1",
-  "build_timestamp": "2025-08-20 08:06:12 UTC",
+  "build_timestamp": "Wed Aug 20 08:06:12 UTC 2025",
   "compiler": "Android (8508608, based on r450784e) clang version 14.0.7 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6), LLD 14.0.7",
-  "banner": "Linux version 5.15.153-android13-8-2370170-abX710ZCU5CYH4 (ms@DESKTOP-EAS21AS) (Android (8508608, based on r450784e) clang version 14.0.7 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6), LLD 14.0.7) #1 SMP PREEMPT 2025-08-20 08:06:12 UTC",
-  "reference_sha256": "df64f02236b9394881f25a1e8167fde680887ef4119a27d7200721dd76119591",
-  "source_kernel_version": "5.15.220"
+  "banner": "Linux version 5.15.153-android13-8-2370170-abX710ZCU5CYH4 (build-user@build-host) (Android (8508608, based on r450784e) clang version 14.0.7 (https://android.googlesource.com/toolchain/llvm-project 4c603efb0cca074e9238af8b4106c30add4418f6), LLD 14.0.7) #1 SMP PREEMPT Wed Aug 20 08:06:12 UTC 2025",
+  "reference_sha256": "861d2bb5a7b7419d01b5fa1e09497385dfb99b250ca650f6740a20fc56f671d1",
+  "source_kernel_version": "5.15.220",
+  "reference_input": "boot.img.lz4",
+  "reference_input_sha256": "961ce4a29372593d646b871444d096818da0ba3fb67ab7e2e42d78e973bf22c2",
+  "reference_boot_sha256": "9b9d883a26231aaf1993951d14028b5df9ae991ef81af06d5aa5d55276211b83",
+  "reference_boot_header_version": 4,
+  "reference_kernel_size": 45550080
 }

@@ -96,7 +96,7 @@ jobs:
           sudo apt-get clean
           df -h .
 
-      - name: Prepare selected config and reference zImage identity
+      - name: Prepare selected config and reference boot image identity
         env:
           INPUT_DROIDSPACES: ${{ inputs.droidspaces }}
           INPUT_NTSYNC: ${{ inputs.ntsync }}
@@ -150,7 +150,7 @@ jobs:
             echo '```'
             cat "out/$BUILD_MODE/include/config/kernel.release"
             echo '```'
-            echo 'Source remains Linux 5.15.220. Displayed identity is copied from the supplied zImage.'
+            echo 'Source remains Linux 5.15.220. Displayed identity is copied from the kernel in the supplied boot.img.lz4.'
             echo 'Matching the release string does not guarantee vendor module ABI compatibility.'
             echo '#### Requested config'
             echo '```'
