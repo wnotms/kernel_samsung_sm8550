@@ -44,6 +44,38 @@ on:
         description: "启用 Re:Kernel (Generic Netlink)"
         type: boolean
         default: true
+      baseband_guard:
+        description: "启用 Baseband-guard 分区写入保护"
+        type: boolean
+        default: true
+      unicode_fix:
+        description: "应用 Unicode 路径修复"
+        type: boolean
+        default: true
+      ptrace_fix:
+        description: "应用 ptrace 信息泄漏修复"
+        type: boolean
+        default: true
+      ntfs3:
+        description: "启用 NTFS3 读写及 LZX/XPRESS"
+        type: boolean
+        default: true
+      full_tmpfs:
+        description: "启用 tmpfs ACL / INODE64 扩展（保留基础 tmpfs）"
+        type: boolean
+        default: true
+      ipset:
+        description: "启用全部 ipset 类型及 iptables xt_set"
+        type: boolean
+        default: true
+      ttl_target:
+        description: "启用 iptables TTL / IPv6 HL target"
+        type: boolean
+        default: true
+      hide_ipv6_nat:
+        description: "隐藏 /proc/config.gz 中的 IPv6 NAT 配置（不关闭 NAT）"
+        type: boolean
+        default: true
       extra_config:
         description: '额外配置，例如 CONFIG_USER_NS=y;CONFIG_IKCONFIG=y（支持分号或换行）'
         type: string
@@ -105,6 +137,14 @@ jobs:
           INPUT_SUSFS: ${{ inputs.susfs }}
           INPUT_ZEROMOUNT: ${{ inputs.zeromount }}
           INPUT_REKERNEL: ${{ inputs.rekernel }}
+          INPUT_BASEBAND_GUARD: ${{ inputs.baseband_guard }}
+          INPUT_UNICODE_FIX: ${{ inputs.unicode_fix }}
+          INPUT_PTRACE_FIX: ${{ inputs.ptrace_fix }}
+          INPUT_NTFS3: ${{ inputs.ntfs3 }}
+          INPUT_FULL_TMPFS: ${{ inputs.full_tmpfs }}
+          INPUT_IPSET: ${{ inputs.ipset }}
+          INPUT_TTL_TARGET: ${{ inputs.ttl_target }}
+          INPUT_HIDE_IPV6_NAT: ${{ inputs.hide_ipv6_nat }}
           EXTRA_CONFIG: ${{ inputs.extra_config }}
         run: python3 scripts/build/ci_config.py prepare "out/$BUILD_MODE/selected.config"
 
@@ -158,6 +198,7 @@ jobs:
             out/${{ inputs.mode }}/System.map
             out/${{ inputs.mode }}/.config
             out/${{ inputs.mode }}/selected.config
+            out/${{ inputs.mode }}/features.config
             out/${{ inputs.mode }}/SM8550_*.zip
 
       - name: Upload failed build logs
@@ -172,3 +213,4 @@ jobs:
             out/${{ inputs.mode }}/.make.attempt*.log
             out/${{ inputs.mode }}/.config
             out/${{ inputs.mode }}/selected.config
+            out/${{ inputs.mode }}/features.config

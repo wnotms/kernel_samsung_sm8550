@@ -12,6 +12,8 @@
 # Env overrides:
 #   KERNEL_TAG                           : banner suffix (default YuccaA)
 #   APPLY_SUSFS / APPLY_ZEROMOUNT / APPLY_BBG / APPLY_ZRAM : 0|1, see apply_features.sh
+#   ENABLE_NTFS3 / ENABLE_FULL_TMPFS / ENABLE_IPSET / ENABLE_TTL_TARGET: 0|1
+#   APPLY_PTRACE_FIX / APPLY_UNICODE_FIX / APPLY_IPV6_NAT_FIX: 0|1
 #   JOBS                                 : parallel make jobs (default nproc)
 #   SKIP_TOOLCHAIN_SETUP=1               : trust prebuilts/ as-is
 #   ZIP_AFTER=0                          : skip auto-pack of AnyKernel3 zip
@@ -132,6 +134,7 @@ MAKE_ARGS=(
   OBJCOPY=llvm-objcopy
   OBJDUMP=llvm-objdump
   STRIP=llvm-strip
+  "HIDE_IPV6_NAT=${APPLY_IPV6_NAT_FIX:-1}"
   CROSS_COMPILE=aarch64-linux-gnu-
   -j"${JOBS}"
 )
@@ -155,18 +158,12 @@ log "Selecting ThinLTO (keeps CFI, fits CI memory; FULL LTO OOMs)..."
 scripts/config --file "${OUT_DIR}/.config" \
   -d LTO_NONE -e LTO_CLANG -e LTO_CLANG_THIN -d LTO_CLANG_FULL
 
-# Add NTFS3 (read/write NTFS, e.g. OTG drives) -- the sm8650/sm8750 trees ship
-# it and we lacked it. We deliberately do NOT disable HUGEPAGE_POOL (unlike
-# those trees): Samsung's 5.15 mm/kzerod.c only references need_pause() and
-# kzerod_app_launch_nb under CONFIG_HUGEPAGE_POOL=y, and the tree builds with
-# -Werror, so turning it off makes them unused -> -Wunused-function/-variable
-# error. Keep HUGEPAGE_POOL on for sm8550 (it boots fine with it on).
-log "Enabling NTFS3 + full tmpfs + TTL target (keeping HUGEPAGE_POOL on; Samsung mm needs it under -Werror)..."
-scripts/config --file "${OUT_DIR}/.config" \
-  -e NTFS3_FS -e NTFS3_LZX_XPRESS \
-  -e TMPFS -e TMPFS_POSIX_ACL -e TMPFS_XATTR -e TMPFS_INODE64 \
-  -e NETFILTER_XT_TARGET_HL -e NETFILTER_XT_SET \
-  -e REKERNEL -d REKERNEL_LEGACY_NETLINK
+# Explicit states replace unconditional extra features. For standalone builds,
+# ENABLE_NTFS3/FULL_TMPFS/IPSET/TTL_TARGET and APPLY_BBG default to 1;
+# Actions sets all of them from the manual workflow inputs.
+python3 "${SCRIPT_DIR}/ci_config.py" extras "${OUT_DIR}/features.config"
+python3 "${SCRIPT_DIR}/ci_config.py" apply "${OUT_DIR}/.config" "${OUT_DIR}/features.config"
+scripts/config --file "${OUT_DIR}/.config" -e REKERNEL -d REKERNEL_LEGACY_NETLINK
 
 # Mode feature configs, mirroring the sm8650/sm8750 trees:
 #   resukisu = KSU + SUSFS + ZeroMount built in
@@ -193,13 +190,9 @@ fi
 make "${MAKE_ARGS[@]}" olddefconfig
 if [[ -n "${CONFIG_FRAGMENT_FILE:-}" ]]; then
   python3 "${SCRIPT_DIR}/ci_config.py" verify "${OUT_DIR}/.config" "${CONFIG_FRAGMENT_FILE}"
+else
+  python3 "${SCRIPT_DIR}/ci_config.py" verify "${OUT_DIR}/.config" "${OUT_DIR}/features.config"
 fi
-
-# IP_SET without XT_SET cannot be consumed by iptables' -m set match.
-if ! grep -q '^CONFIG_NETFILTER_XT_SET=y$' "${OUT_DIR}/.config"; then
-  die "IP_SET requires built-in NETFILTER_XT_SET support"
-fi
-log "IP_SET / xt_set: built in"
 
 # Match the official Re:Kernel module's Generic Netlink transport.
 if [[ "${ENABLE_REKERNEL:-1}" == "1" ]] && { ! grep -q '^CONFIG_REKERNEL=y$' "${OUT_DIR}/.config" || \

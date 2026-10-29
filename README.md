@@ -4,7 +4,7 @@
 
 # kernel_samsung_sm8550
 
-本 fork 的 Actions 支持手动选择功能和额外 Kconfig 设置，并沿用上传 boot.img.lz4 内核的版本标识、编译者及时间。实际源码保持 5.15.220。使用方式见 [Actions 编译说明](docs/actions-build.md)。
+本 fork 的 Actions 支持手动选择功能和额外 Kconfig 设置，并沿用上传 boot.img.lz4 内核的版本标识、编译者及时间。实际源码保持 5.15.220。使用方式见 [Actions 编译说明](docs/actions-build.md)。Baseband-guard、Unicode/ptrace 修复、NTFS3、tmpfs 扩展、ipset、TTL/HL target 和 IPv6 NAT 配置隐藏均可独立选择。
 
 > 2026-09-09 更新：LTS 5.15.220；移除全部 Wild 性能/日志/唤醒调优。
 > 保留 BBR、ZRAM LZ4、Unicode、Droidspaces、ipset 等现有功能。

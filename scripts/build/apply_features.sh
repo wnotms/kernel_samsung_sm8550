@@ -325,52 +325,37 @@ prepare_wild_patches() {
   ok "Wild patches: pinned at ${resolved}."
 }
 
-# ---------- Upstream ptrace hardening ----------
-apply_ptrace_fix() {
+# Toggle a known patch in either direction. Refuse unknown/partial states.
+# This also makes repeated local builds honor an on -> off selection.
+set_patch_state() {
+  local patch_file="$1" enabled="$2" label="$3"
+  [[ -f "${patch_file}" ]] || die "${label}: missing patch ${patch_file}"
   pushd "${PROJECT_ROOT}" >/dev/null
-  # Ptrace hardening for 5.15: upstream ~5.16 ptrace-message threading + our
-  # ptrace_message zeroing. Vendored in-repo (no Wild dependency for this one).
-  local pf="${SCRIPT_DIR}/features/ptrace/gki_ptrace.patch"
-  if [[ -f "${pf}" ]]; then
-    if patch -p1 -R --dry-run -F3 -s -f --no-backup-if-mismatch < "${pf}" >/dev/null 2>&1; then
-      warn "  ↺ already applied: gki_ptrace.patch"
-    elif patch -p1 -F3 -s --no-backup-if-mismatch < "${pf}" >/dev/null 2>&1; then
-      ok "  + applied: gki_ptrace.patch (ptrace leak fix)"
-    else
-      warn "  ! skip (does not apply): gki_ptrace.patch"
+  local args=(-p1 --force --fuzz=3 --no-backup-if-mismatch --reject-file=-)
+  if patch "${args[@]}" -R --dry-run < "${patch_file}" >/dev/null 2>&1; then
+    if [[ "${enabled}" == "0" ]]; then
+      patch "${args[@]}" -R < "${patch_file}" || die "${label}: cannot remove patch"
+    fi
+  elif patch "${args[@]}" --forward --dry-run < "${patch_file}" >/dev/null 2>&1; then
+    if [[ "${enabled}" == "1" ]]; then
+      patch "${args[@]}" --forward < "${patch_file}" || die "${label}: cannot apply patch"
     fi
   else
-    warn "  missing: gki_ptrace.patch"
+    die "${label}: patch is neither cleanly applied nor cleanly unapplied"
   fi
   popd >/dev/null
-  ok "Ptrace hardening done."
+  ok "${label}: enabled=${enabled}"
 }
 
-# ---------- Wild Kernels: Unicode bypass fix ----------
-# Patch path-name handling so non-printable Unicode codepoints can't
-# be used to mask /sbin/su etc. against root detectors. Pairs nicely
-# with SuSFS.
-apply_unicode_fix() {
-  local kv_major kv_minor variant
-  kv_major=$(awk '/^VERSION = / {print $3}' "${PROJECT_ROOT}/Makefile")
-  kv_minor=$(awk '/^PATCHLEVEL = / {print $3}' "${PROJECT_ROOT}/Makefile")
-  if (( kv_major > 6 || (kv_major == 6 && kv_minor >= 1) )); then
-    variant="unicode_bypass_fix_6.1+.patch"
-  else
-    variant="unicode_bypass_fix_6.1-.patch"
-  fi
-  local file="${WILD_PATCHES_DIR}/common/${variant}"
-  [[ -f "${file}" ]] || { warn "Unicode fix: ${variant} missing"; return; }
+# Vendored patches are scoped to this 5.15 tree. Unicode source:
+# WildKernels/kernel_patches @ 35fac8ee31035fb73a8b9301b50c2bdb4ff7feb7,
+# common/unicode_bypass_fix_6.1-.patch (GPL kernel patch).
+apply_ptrace_fix() {
+  set_patch_state "${SCRIPT_DIR}/features/ptrace/gki_ptrace.patch" "${APPLY_PTRACE_FIX}" "ptrace fix"
+}
 
-  pushd "${PROJECT_ROOT}" >/dev/null
-  if patch -p1 -R --dry-run -F3 -s -f --no-backup-if-mismatch < "${file}" >/dev/null 2>&1; then
-    warn "Unicode fix: already applied."
-  elif patch -p1 -F3 -s --no-backup-if-mismatch < "${file}" >/dev/null 2>&1; then
-    ok "Unicode fix: ${variant} applied."
-  else
-    warn "Unicode fix: ${variant} does not apply; skipping."
-  fi
-  popd >/dev/null
+apply_unicode_fix() {
+  set_patch_state "${SCRIPT_DIR}/features/unicode/unicode_bypass_fix.patch" "${APPLY_UNICODE_FIX}" "Unicode fix"
 }
 
 # ---------- NTSync (Wine / Proton sync primitives) ----------
@@ -478,62 +463,9 @@ EOF
   ok "Droidspaces: configs appended to gki_defconfig."
 }
 
-# ---------- IPv6 NAT Fix (Wild Kernels, ported for Samsung) ----------
-# Same idea as common/IPv6_NAT_FIX.patch from WildKernels: at build
-# time post-process kernel/config_data so /proc/config.gz reports
-# CONFIG_IP6_NF_NAT=n even though the running kernel has IPv6 NAT
-# enabled. Defeats root-detection scripts that scrape /proc/config.gz.
-#
-# Wild's upstream patch assumes the GKI 'config_data' rule depends on
-# $(KCONFIG_CONFIG); Samsung's sm8550 fork changed it to depend on
-# gki_defconfig-stock, so the upstream patch context fails. We do the
-# equivalent inline edit (sed insert) directly. Independent of KSU.
-apply_ipv6_nat_fix() {
-  local mk="${PROJECT_ROOT}/kernel/Makefile"
-  [[ -f "${mk}" ]] || { warn "IPv6 NAT Fix: kernel/Makefile missing"; return; }
-  if grep -q 'IP6_NF_NAT_FIX_MARKER' "${mk}"; then
-    warn "IPv6 NAT Fix: already applied."
-    return
-  fi
-
-  log "IPv6 NAT Fix: editing kernel/Makefile (Samsung port)..."
-
-  # 1) Insert the config_fix define right after the 'filechk_cat = cat $<' line.
-  python3 - "${mk}" <<'PY'
-import sys, pathlib
-p = pathlib.Path(sys.argv[1])
-src = p.read_text()
-define_block = '''
-# IP6_NF_NAT_FIX_MARKER (Universal kernel)
-define config_fix
-\techo "kernel: Checking config_data for CONFIG_IP6_NF_NAT..."; \\
-\tif grep -q '^CONFIG_IP6_NF_NAT=y' $@; then \\
-\t\tsed -i 's/^CONFIG_IP6_NF_NAT=y$$/CONFIG_IP6_NF_NAT=n/' $@; \\
-\t\techo "kernel: Hid CONFIG_IP6_NF_NAT (real value still =y at runtime)"; \\
-\tfi
-endef
-'''
-needle = 'filechk_cat = cat $<\n'
-i = src.find(needle)
-if i < 0:
-    sys.exit('IPv6 NAT Fix: needle "filechk_cat = cat $<" not found in kernel/Makefile')
-ins = i + len(needle)
-new = src[:ins] + define_block + src[ins:]
-
-# 2) Append $(Q)$(config_fix) to the config_data recipe.
-needle2 = '$(obj)/config_data: arch/arm64/configs/gki_defconfig-stock FORCE\n\t$(call filechk,cat)\n'
-if needle2 not in new:
-    sys.exit('IPv6 NAT Fix: Samsung config_data rule not found verbatim')
-new = new.replace(
-    needle2,
-    needle2 + '\t$(Q)$(config_fix)\n',
-    1,
-)
-p.write_text(new)
-print('IPv6 NAT Fix: inline edit applied')
-PY
-  ok "IPv6 NAT Fix: applied (Samsung port)."
-}
+# IPv6 NAT config hiding is now a conditional config_data recipe in
+# kernel/Makefile. build.sh passes HIDE_IPV6_NAT explicitly on every make.
+# No source/Makefile mutation is needed when this option changes.
 
 # ---------- Disable Samsung Security Stack ----------
 # Append overrides to gki_defconfig disabling Samsung-specific
@@ -575,8 +507,7 @@ apply_compat_patch() {
 
 main() {
   log "Applying features (SuSFS=${APPLY_SUSFS} ZeroMount=${APPLY_ZEROMOUNT} BBG=${APPLY_BBG} zram=${APPLY_ZRAM} BBR=${APPLY_BBR} PtraceFix=${APPLY_PTRACE_FIX} Unicode=${APPLY_UNICODE_FIX} NTSync=${APPLY_NTSYNC} Droidspaces=${APPLY_DROIDSPACES} IPv6NATFix=${APPLY_IPV6_NAT_FIX} DisableSamsungSec=${APPLY_DISABLE_SAMSUNG_SEC})"
-  if [[ "${APPLY_UNICODE_FIX}" == "1" ||
-        "${APPLY_DROIDSPACES}" == "1" ]]; then
+  if [[ "${APPLY_DROIDSPACES}" == "1" ]]; then
     prepare_wild_patches
   fi
   [[ "${APPLY_SUSFS}" == "1" ]] && apply_susfs
@@ -590,13 +521,15 @@ main() {
   [[ "${APPLY_BBG}" == "1" ]] && apply_bbg
   [[ "${APPLY_ZRAM}" == "1" ]] && apply_zram_lz4_neon
   [[ "${APPLY_BBR}" == "1" ]] && apply_bbr
-  [[ "${APPLY_PTRACE_FIX}" == "1" ]] && apply_ptrace_fix
-  [[ "${APPLY_UNICODE_FIX}" == "1" ]] && apply_unicode_fix
+  apply_ptrace_fix
+  apply_unicode_fix
   [[ "${APPLY_NTSYNC}" == "1" ]] && apply_ntsync
   [[ "${APPLY_DROIDSPACES}" == "1" ]] && apply_droidspaces
-  [[ "${APPLY_IPV6_NAT_FIX}" == "1" ]] && apply_ipv6_nat_fix
+  log "IPv6 NAT config hiding: ${APPLY_IPV6_NAT_FIX} (controlled by kernel/Makefile)"
   [[ "${APPLY_DISABLE_SAMSUNG_SEC}" == "1" ]] && apply_disable_samsung_security
   ok "All requested features applied."
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

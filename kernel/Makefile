@@ -145,10 +145,13 @@ targets += config_data config_data.gz
 $(obj)/config_data.gz: $(obj)/config_data FORCE
 	$(call if_changed,gzip)
 
-filechk_cat = cat $<
+# Report the actual resolved build config. Hiding IPv6 NAT affects only the
+# embedded report, never the kernel's real networking configuration.
+HIDE_IPV6_NAT ?= 0
+filechk_config_data = $(if $(filter 1,$(HIDE_IPV6_NAT)),sed 's/^CONFIG_IP6_NF_NAT=y$$/# CONFIG_IP6_NF_NAT is not set/' $<,cat $<)
 
-$(obj)/config_data: arch/arm64/configs/gki_defconfig-stock FORCE
-	$(call filechk,cat)
+$(obj)/config_data: $(KCONFIG_CONFIG) FORCE
+	$(call filechk,config_data)
 
 $(obj)/kheaders.o: $(obj)/kheaders_data.tar.xz
 
