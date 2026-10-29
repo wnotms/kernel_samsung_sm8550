@@ -1,0 +1,132 @@
+name: Build Samsung SM8550 kernel
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Kernel build mode"
+        required: true
+        type: choice
+        options:
+          - lkm
+          - resukisu
+        default: lkm
+      package_zip:
+        description: "Package the Image into an AnyKernel3 flashable ZIP"
+        required: true
+        type: boolean
+        default: true
+      kernel_tag:
+        description: "Kernel localversion tag (no spaces)"
+        required: true
+        type: string
+        default: "YuccaA"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sm8550-build-${{ github.ref }}-${{ inputs.mode }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ inputs.mode }} (ARM64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    env:
+      KERNEL_TAG: ${{ inputs.kernel_tag }}
+      JOBS: "4"
+      USE_CCACHE: "0"
+      ZIP_AFTER: ${{ inputs.package_zip && '1' || '0' }}
+
+    steps:
+      - name: Checkout kernel sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Free runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h .
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /usr/local/share/powershell /usr/local/.ghcup /opt/hostedtoolcache
+          df -h .
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
+            libfdt-dev cpio rsync zstd zip unzip curl git python3 patch \
+            binutils-aarch64-linux-gnu ca-certificates openssl
+          sudo apt-get clean
+          df -h .
+
+      # The source's ROM gate defaults to diagnostic mode (no panic).
+      # For repeatable ROM integration, supply the SAME token on every build
+      # using the repository Actions secret named YUCCA_TOKEN.
+      # Never upload the token or generated header as an artifact.
+      - name: Configure optional ROM gate token
+        shell: bash
+        env:
+          YUCCA_TOKEN: ${{ secrets.YUCCA_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${YUCCA_TOKEN}" ]]; then
+            printf '%s' "${YUCCA_TOKEN}" > .yucca_token
+            chmod 600 .yucca_token
+            echo "Using stable ROM gate token from repository secret."
+          else
+            echo "::warning::YUCCA_TOKEN is not configured. build.sh will generate an ephemeral token. The default gate is diagnostic, but any ROM that checks the token needs a stable secret."
+          fi
+
+      - name: Fetch AnyKernel3 packaging tools
+        if: ${{ inputs.package_zip }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/osm0sis/AnyKernel3.git anykernel3
+          test -f anykernel3/tools/ak3-core.sh
+          rm -rf anykernel3/.git
+
+      # Uses the repository's own build flow. This automatically fetches
+      # Samsung clang-r450784e, applies the mode-specific patches, selects
+      # ThinLTO + CFI, builds Image and (optionally) packages AnyKernel3.
+      - name: Build kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build/build.sh "${{ inputs.mode }}"
+          test -s "out/${{ inputs.mode }}/arch/arm64/boot/Image"
+          df -h .
+
+      - name: Upload kernel Image, config and ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM8550-${{ inputs.mode }}-${{ github.run_number }}
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            out/${{ inputs.mode }}/arch/arm64/boot/Image
+            out/${{ inputs.mode }}/include/config/kernel.release
+            out/${{ inputs.mode }}/.config
+            out/${{ inputs.mode }}/SM8550_*.zip
+
+      - name: Upload failed build logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: SM8550-${{ inputs.mode }}-logs-${{ github.run_number }}
+          retention-days: 7
+          if-no-files-found: ignore
+          include-hidden-files: true
+          path: |
+            out/${{ inputs.mode }}/.make.attempt*.log
+            out/${{ inputs.mode }}/.config
