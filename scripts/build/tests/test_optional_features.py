@@ -19,6 +19,37 @@ FLAGS = "DROIDSPACES NTSYNC BBR ZRAM_LZ4 SUSFS ZEROMOUNT REKERNEL BASEBAND_GUARD
 
 
 class OptionalFeatures(unittest.TestCase):
+    def test_gnu_host_tools_win_over_toolchain_applets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temp = Path(temporary)
+            applets = temp / "applets"
+            compiler = temp / "compiler"
+            applets.mkdir()
+            compiler.mkdir()
+            for name in ("patch", "grep", "realpath"):
+                executable = applets / name
+                executable.write_text('#!/bin/sh\necho "unsupported host option" >&2\nexit 64\n')
+                executable.chmod(0o755)
+            clang = compiler / "clang"
+            clang.write_text('#!/bin/sh\necho pinned-compiler\n')
+            clang.chmod(0o755)
+            command = '''source "$1"
+CLANG_BIN="$2"
+BUILDTOOLS_BIN="$3"
+BUILDTOOLS_PATH_BIN="$3"
+KERNEL_BUILD_TOOLS_BIN="$3"
+export PATH="$3:$PATH"
+if patch --version >/dev/null 2>&1; then exit 90; fi
+setup_build_path
+patch --version
+printf '%s\\n' abc | grep -Po 'a.c'
+realpath --relative-to="$4" "$4/child"
+clang
+'''
+            result = subprocess.run(["bash", "-c", command, "test", str(ROOT / "scripts/build/common.sh"), str(compiler), str(applets), str(temp)], cwd=ROOT, check=True, capture_output=True, text=True)
+            self.assertIn("GNU patch", result.stdout)
+            self.assertIn("abc\nchild\npinned-compiler", result.stdout)
+
     def test_feature_config_combinations(self):
         for values in itertools.product((False, True), repeat=5):
             bbg, ntfs, tmpfs, ipset, ttl = values

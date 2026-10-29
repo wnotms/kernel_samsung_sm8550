@@ -341,6 +341,9 @@ set_patch_state() {
       patch "${args[@]}" --forward < "${patch_file}" || die "${label}: cannot apply patch"
     fi
   else
+    warn "${label}: patch executable is $(command -v patch)"
+    patch "${args[@]}" --forward --dry-run < "${patch_file}" >&2 || true
+    patch "${args[@]}" -R --dry-run < "${patch_file}" >&2 || true
     die "${label}: patch is neither cleanly applied nor cleanly unapplied"
   fi
   popd >/dev/null

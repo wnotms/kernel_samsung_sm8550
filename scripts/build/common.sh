@@ -72,6 +72,13 @@ BUILDTOOLS_PATH_BIN="${TOOLCHAIN_ROOT}/build-tools/path/linux-x86"
 # kernel build expects to find on PATH.
 KERNEL_BUILD_TOOLS_BIN="${TOOLCHAIN_ROOT}/kernel-build-tools/linux-x86/bin"
 
+# Keep the pinned compiler/LLVM tools, but use full GNU host utilities.
+# build-tools/path contains Toybox applets that lack options used by patch,
+# grep and realpath in our feature scripts and upstream setup scripts.
+setup_build_path() {
+  export PATH="${CLANG_BIN}:/usr/bin:/bin:${KERNEL_BUILD_TOOLS_BIN}:${BUILDTOOLS_BIN}:${BUILDTOOLS_PATH_BIN}:${PATH}"
+}
+
 # ---- ReSukiSU (KernelSU) configuration ----
 # Use the upstream setup.sh and sources from the same pinned commit.
 # This keeps all three SoC builds reproducible. setup.sh

@@ -53,7 +53,8 @@ log "Out dir: ${OUT_DIR}"
 if [[ "${SKIP_TOOLCHAIN_SETUP:-0}" != "1" ]]; then
   "${SCRIPT_DIR}/setup_toolchain.sh"
 fi
-export PATH="${CLANG_BIN}:${BUILDTOOLS_BIN}:${BUILDTOOLS_PATH_BIN}:${KERNEL_BUILD_TOOLS_BIN}:${PATH}"
+setup_build_path
+log "Host tools: patch=$(command -v patch), grep=$(command -v grep), realpath=$(command -v realpath)"
 
 # 2. ReSukiSU sources are always fetched: drivers/kernelsu is a symlink
 #    that must resolve at Kconfig-parse time even when KSU is disabled.
